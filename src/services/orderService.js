@@ -52,12 +52,6 @@ async function getAllOrders({ status, search, garment, limit, offset } = {}) {
     query = query.or(`customer_name.ilike.%${search}%,phone.ilike.%${search}%`);
   }
 
-  if (Number.isInteger(limit) && limit > 0) {
-    const start = Number.isInteger(offset) && offset >= 0 ? offset : 0;
-    const end = start + limit - 1;
-    query = query.range(start, end);
-  }
-
   const { data, error } = await query;
 
   if (error) {
@@ -76,7 +70,13 @@ async function getAllOrders({ status, search, garment, limit, offset } = {}) {
     );
   }
 
-  return results;
+  const total = results.length;
+  if (Number.isInteger(limit) && limit > 0) {
+    const start = Number.isInteger(offset) && offset >= 0 ? offset : 0;
+    results = results.slice(start, start + limit);
+  }
+
+  return { orders: results, total };
 }
 
 /**

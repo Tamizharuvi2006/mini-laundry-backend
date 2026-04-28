@@ -60,15 +60,31 @@ async function getAllOrders(req, res) {
     const { status, search, garment, limit, offset } = req.query;
     const parsedLimit = limit ? parseInt(limit, 10) : undefined;
     const parsedOffset = offset ? parseInt(offset, 10) : undefined;
-    const orders = await orderService.getAllOrders({
+    const safeLimit = Number.isNaN(parsedLimit) ? undefined : parsedLimit;
+    const safeOffset = Number.isNaN(parsedOffset) ? undefined : parsedOffset;
+    const result = await orderService.getAllOrders({
       status,
       search,
       garment,
-      limit: Number.isNaN(parsedLimit) ? undefined : parsedLimit,
-      offset: Number.isNaN(parsedOffset) ? undefined : parsedOffset,
+      limit: safeLimit,
+      offset: safeOffset,
     });
 
-    res.json({ success: true, count: orders.length, data: orders });
+    const orders = Array.isArray(result?.orders) ? result.orders : [];
+    const total = Number.isInteger(result?.total) ? result.total : orders.length;
+    const pageSize = safeLimit && safeLimit > 0 ? safeLimit : total || orders.length || 0;
+    const currentPage = pageSize > 0 ? Math.floor((safeOffset || 0) / pageSize) + 1 : 1;
+    const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1;
+
+    res.json({
+      success: true,
+      count: orders.length,
+      total,
+      page: currentPage,
+      pageSize,
+      totalPages,
+      data: orders,
+    });
   } catch (error) {
     console.error('Get orders error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch orders' });
