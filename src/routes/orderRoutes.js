@@ -5,6 +5,7 @@ const {
   createOrder,
   getAllOrders,
   getOrderById,
+  getOrderEvents,
   updateOrderStatus,
   deleteOrder,
   editOrder,
@@ -17,6 +18,7 @@ router.use(authMiddleware);
 router.post('/', createOrder);
 router.get('/', getAllOrders);
 router.get('/:orderId', getOrderById);
+router.get('/:orderId/events', getOrderEvents);
 router.patch('/:orderId/status', updateOrderStatus);
 router.put('/:orderId', editOrder);
 router.post('/:orderId/refund', refundOrder);

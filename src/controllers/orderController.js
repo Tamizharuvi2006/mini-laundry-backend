@@ -3,9 +3,6 @@ const { validateOrderData, validateStatus, validateStatusTransition } = require(
 const { calculateBill } = require('../utils/calculateBill');
 const generateOrderId = require('../utils/generateOrderId');
 
-/**
- * Create a new laundry order
- */
 async function createOrder(req, res) {
   try {
     const validation = validateOrderData(req.body);
@@ -14,12 +11,9 @@ async function createOrder(req, res) {
     }
 
     const { customerName, phone, garments, estimatedDeliveryDate } = req.body;
-
-    // Backend calculates bill — source of truth
     const billing = calculateBill(garments);
     const orderId = generateOrderId();
 
-    // Default estimated delivery: 3 days from now
     let deliveryDate = estimatedDeliveryDate;
     if (!deliveryDate) {
       const d = new Date();
@@ -39,6 +33,17 @@ async function createOrder(req, res) {
 
     const order = await orderService.createOrder(orderData);
 
+    try {
+      await orderService.logOrderEvent({
+        orderId: order.order_id,
+        eventType: 'ORDER_CREATED',
+        message: `Order created with status ${order.status}`,
+        metadata: { totalAmount: order.total_amount },
+      });
+    } catch (e) {
+      console.error('Order event log failed:', e.message);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
@@ -50,9 +55,6 @@ async function createOrder(req, res) {
   }
 }
 
-/**
- * Get all orders with optional search/filter
- */
 async function getAllOrders(req, res) {
   try {
     const { status, search, garment, limit, offset } = req.query;
@@ -66,29 +68,18 @@ async function getAllOrders(req, res) {
       offset: Number.isNaN(parsedOffset) ? undefined : parsedOffset,
     });
 
-    res.json({
-      success: true,
-      count: orders.length,
-      data: orders,
-    });
+    res.json({ success: true, count: orders.length, data: orders });
   } catch (error) {
     console.error('Get orders error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch orders' });
   }
 }
 
-/**
- * Get a single order by order_id
- */
 async function getOrderById(req, res) {
   try {
     const { orderId } = req.params;
     const order = await orderService.getOrderById(orderId);
-
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
-    }
-
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
     res.json({ success: true, data: order });
   } catch (error) {
     console.error('Get order error:', error);
@@ -96,9 +87,19 @@ async function getOrderById(req, res) {
   }
 }
 
-/**
- * Update order status
- */
+async function getOrderEvents(req, res) {
+  try {
+    const { orderId } = req.params;
+    const order = await orderService.getOrderById(orderId);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    const events = await orderService.getOrderEvents(orderId);
+    res.json({ success: true, data: events });
+  } catch (error) {
+    console.error('Get order events error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch order events' });
+  }
+}
+
 async function updateOrderStatus(req, res) {
   try {
     const { orderId } = req.params;
@@ -120,47 +121,38 @@ async function updateOrderStatus(req, res) {
     }
 
     const order = await orderService.updateOrderStatus(orderId, status);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
+    try {
+      await orderService.logOrderEvent({
+        orderId: order.order_id,
+        eventType: 'STATUS_UPDATED',
+        message: `Status changed from ${existingOrder.status} to ${status}`,
+        metadata: { from: existingOrder.status, to: status },
+      });
+    } catch (e) {
+      console.error('Order event log failed:', e.message);
     }
 
-    res.json({
-      success: true,
-      message: 'Order status updated successfully',
-      data: order,
-    });
+    res.json({ success: true, message: 'Order status updated successfully', data: order });
   } catch (error) {
     console.error('Update status error:', error);
     res.status(500).json({ success: false, message: 'Failed to update status' });
   }
 }
 
-/**
- * Delete an order (optional — admin cleanup only)
- */
 async function deleteOrder(req, res) {
   try {
     const { orderId } = req.params;
     const deleted = await orderService.deleteOrder(orderId);
-
-    if (!deleted) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
-    }
-
-    res.json({
-      success: true,
-      message: 'Order deleted successfully',
-    });
+    if (!deleted) return res.status(404).json({ success: false, message: 'Order not found' });
+    res.json({ success: true, message: 'Order deleted successfully' });
   } catch (error) {
     console.error('Delete order error:', error);
     res.status(500).json({ success: false, message: 'Failed to delete order' });
   }
 }
 
-/**
- * Edit an order
- */
 async function editOrder(req, res) {
   try {
     const { orderId } = req.params;
@@ -171,7 +163,6 @@ async function editOrder(req, res) {
     }
 
     const { garments: processedGarments, totalAmount } = calculateBill(garments);
-
     const updateData = {
       customer_name: customerName,
       phone: phone,
@@ -181,9 +172,17 @@ async function editOrder(req, res) {
     };
 
     const order = await orderService.editOrder(orderId, updateData);
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
+    try {
+      await orderService.logOrderEvent({
+        orderId: order.order_id,
+        eventType: 'ORDER_EDITED',
+        message: 'Order details were updated',
+        metadata: { totalAmount: order.total_amount },
+      });
+    } catch (e) {
+      console.error('Order event log failed:', e.message);
     }
 
     res.json({ success: true, message: 'Order updated successfully', data: order });
@@ -193,9 +192,6 @@ async function editOrder(req, res) {
   }
 }
 
-/**
- * Refund an order
- */
 async function refundOrder(req, res) {
   try {
     const { orderId } = req.params;
@@ -206,9 +202,17 @@ async function refundOrder(req, res) {
     }
 
     const order = await orderService.refundOrder(orderId, reason.trim());
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Order not found' });
+    try {
+      await orderService.logOrderEvent({
+        orderId: order.order_id,
+        eventType: 'ORDER_REFUNDED',
+        message: `Order refunded. Reason: ${reason.trim()}`,
+        metadata: { reason: reason.trim(), amount: order.total_amount },
+      });
+    } catch (e) {
+      console.error('Order event log failed:', e.message);
     }
 
     res.json({ success: true, message: 'Order refunded successfully', data: order });
@@ -218,4 +222,13 @@ async function refundOrder(req, res) {
   }
 }
 
-module.exports = { createOrder, getAllOrders, getOrderById, updateOrderStatus, deleteOrder, editOrder, refundOrder };
+module.exports = {
+  createOrder,
+  getAllOrders,
+  getOrderById,
+  getOrderEvents,
+  updateOrderStatus,
+  deleteOrder,
+  editOrder,
+  refundOrder,
+};

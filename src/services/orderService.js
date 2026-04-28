@@ -18,6 +18,21 @@ async function createOrder(orderData) {
   return data;
 }
 
+async function logOrderEvent({ orderId, eventType, message, metadata = null }) {
+  const payload = {
+    order_id: orderId,
+    event_type: eventType,
+    message,
+    metadata,
+  };
+
+  const { error } = await supabase.from('order_events').insert([payload]);
+  if (error) {
+    console.error('Supabase order event insert error:', error);
+    throw new Error('Failed to log order event');
+  }
+}
+
 /**
  * Get all orders with optional filters
  */
@@ -81,6 +96,21 @@ async function getOrderById(orderId) {
   }
 
   return data;
+}
+
+async function getOrderEvents(orderId) {
+  const { data, error } = await supabase
+    .from('order_events')
+    .select('*')
+    .eq('order_id', orderId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Supabase fetch order events error:', error);
+    throw new Error('Failed to fetch order events');
+  }
+
+  return data || [];
 }
 
 /**
@@ -163,4 +193,14 @@ async function refundOrder(orderId, reason) {
   return data;
 }
 
-module.exports = { createOrder, getAllOrders, getOrderById, updateOrderStatus, deleteOrder, editOrder, refundOrder };
+module.exports = {
+  createOrder,
+  getAllOrders,
+  getOrderById,
+  getOrderEvents,
+  updateOrderStatus,
+  deleteOrder,
+  editOrder,
+  refundOrder,
+  logOrderEvent,
+};
