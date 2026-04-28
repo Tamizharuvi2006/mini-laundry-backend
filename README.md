@@ -69,3 +69,39 @@ FRONTEND_URL=http://localhost:5173
 
 - `.env` is gitignored, `.env.example` is committed.
 - Supabase schema is maintained in the root repository `supabase-schema.sql`.
+
+## Assignment Mapping (AI-First)
+
+This backend covers the assignment core requirements:
+- Create Order
+- Order Status Management
+- View Orders (with filter/search)
+- Basic Dashboard (total orders, revenue, orders per status)
+
+Implemented details:
+- Backend bill calculation (source of truth)
+- Unique order ID generation
+- Status transitions
+- Refund support (negative impact on net revenue)
+- Pagination support for order listing
+
+## AI Usage Report
+
+### Tools Used
+- ChatGPT (primary)
+- GitHub Copilot (optional assist)
+
+### Sample Prompts
+- "Design Express routes/controllers/services for a laundry order management API."
+- "Generate Supabase schema for orders with status tracking and garment JSON."
+- "Add practical request validation and clean API response structure."
+
+### Where AI Helped
+- Initial API scaffolding
+- Validation and schema drafts
+- Endpoint structure and docs drafting
+
+### What AI Got Wrong and Manual Fixes
+- Billing needed to be enforced in backend, not frontend.
+- Initial auth approach was too permissive and was tightened.
+- Dashboard logic needed manual refinement for refund-aware net revenue.
