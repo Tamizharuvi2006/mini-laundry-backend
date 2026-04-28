@@ -3,10 +3,19 @@ const supabase = require('../config/supabase');
 /**
  * Get dashboard metrics: total orders, total revenue, orders per status
  */
-async function getDashboardMetrics() {
-  const { data, error } = await supabase
+async function getDashboardMetrics({ startDate, endDate } = {}) {
+  let query = supabase
     .from('orders')
     .select('total_amount, status, created_at');
+
+  if (startDate) {
+    query = query.gte('created_at', `${startDate}T00:00:00.000Z`);
+  }
+  if (endDate) {
+    query = query.lte('created_at', `${endDate}T23:59:59.999Z`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Supabase dashboard error:', error);
@@ -84,6 +93,8 @@ async function getDashboardMetrics() {
   const averageNetRevenuePerOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
   return {
+    startDate: startDate || null,
+    endDate: endDate || null,
     totalOrders,
     totalRevenue,
     grossRevenue,

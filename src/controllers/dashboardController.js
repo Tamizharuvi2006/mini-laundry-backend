@@ -5,7 +5,8 @@ const dashboardService = require('../services/dashboardService');
  */
 async function getDashboard(req, res) {
   try {
-    const metrics = await dashboardService.getDashboardMetrics();
+    const { startDate, endDate } = req.query;
+    const metrics = await dashboardService.getDashboardMetrics({ startDate, endDate });
 
     res.json({
       success: true,
